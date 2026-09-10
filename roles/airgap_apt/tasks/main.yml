@@ -1,0 +1,42 @@
+---
+- name: Configure repositories and retain host failures
+  block:
+
+    - name: Mark host in progress
+      ansible.builtin.set_fact:
+        airgap_apt_result:
+          status: incomplete
+          message: Repository configuration started but did not complete; see ansible.log.
+
+    # Check platform, mirror inputs, offline trust assets, and required tools.
+    - name: Validate inputs and offline artifacts before changing APT
+      ansible.builtin.include_tasks: preflight.yml
+
+    # Deploy approved trust files and replace existing repository sources.
+    - name: Deploy trust and replace source definitions
+      ansible.builtin.include_tasks: configure.yml
+
+    # Refresh metadata with strict validation and a bounded runtime.
+    - name: Refresh and validate metadata
+      ansible.builtin.include_tasks: refresh.yml
+
+    - name: Record successful configuration or dry run
+      ansible.builtin.set_fact:
+        airgap_apt_result:
+          status: "{{ 'check_mode' if ansible_check_mode else 'success' }}"
+          message: "{{ 'Configuration preview only; metadata was not refreshed.' if ansible_check_mode else 'Repositories configured and metadata refreshed without warnings or errors.' }}"
+          release: "{{ airgap_apt_release.codename }}"
+  rescue:
+
+    - name: Record failure without rolling source files back
+      ansible.builtin.set_fact:
+        airgap_apt_result:
+          status: failed
+          task: "{{ ansible_failed_task.name }}"
+          message: "{{ ansible_failed_result.msg | default('Task failed') }}"
+          stdout: "{{ ansible_failed_result.stdout | default('') }}"
+          stderr: "{{ ansible_failed_result.stderr | default('') }}"
+
+    - name: Log workstation failure and continue
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: {{ airgap_apt_result }}"

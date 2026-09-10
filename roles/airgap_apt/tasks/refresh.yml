@@ -1,0 +1,30 @@
+---
+- name: Refresh metadata with strict error handling and a bounded runtime
+  ansible.builtin.command:
+    argv:
+    - /usr/bin/timeout
+    - --signal=TERM
+    - --kill-after=15s
+    - '{{ airgap_apt_refresh_deadline }}s'
+    - /usr/bin/apt-get
+    - -o
+    - APT::Update::Error-Mode=any
+    - update
+  environment:
+    LC_ALL: C
+    DEBIAN_FRONTEND: noninteractive
+  register: airgap_apt_refresh
+  changed_when: false
+  failed_when: "airgap_apt_refresh.rc != 0 or ((airgap_apt_refresh.stdout ~ '\\n' ~ airgap_apt_refresh.stderr)\n\
+    \ | regex_search('(?m)^[WE]:')) is not none"
+  when: not ansible_check_mode
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - airgap_apt_refresh is not unreachable
+    - airgap_apt_refresh.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable')
+      | list | length == 0
+    fail_msg: '{{ airgap_apt_refresh.msg | default(''A connection was lost; consult ansible.log for details.'')
+      }}'

@@ -1,0 +1,23 @@
+---
+# Replace the reserved example hostname before deployment.
+airgap_apt_mirror_origin: https://repo.corp.example
+airgap_apt_docker_enabled: false
+# Pin approved artifact bytes, after independently verifying signing fingerprints.
+# The same filenames are used in assets/jammy and assets/noble.
+airgap_apt_asset_sha256:
+  jammy:
+    ubuntu-archive-keyring.gpg: REPLACE_WITH_APPROVED_SHA256
+    ubuntu-pro-esm-infra.gpg: REPLACE_WITH_APPROVED_SHA256
+    ubuntu-pro-esm-apps.gpg: REPLACE_WITH_APPROVED_SHA256
+    ubuntu-pro-fips.gpg: REPLACE_WITH_APPROVED_SHA256
+    corp-archive-keyring.gpg: REPLACE_WITH_APPROVED_SHA256
+    docker.asc: REPLACE_WITH_APPROVED_SHA256
+    corp-ca-bundle.pem: REPLACE_WITH_APPROVED_SHA256
+  noble:
+    ubuntu-archive-keyring.gpg: REPLACE_WITH_APPROVED_SHA256
+    ubuntu-pro-esm-infra.gpg: REPLACE_WITH_APPROVED_SHA256
+    ubuntu-pro-esm-apps.gpg: REPLACE_WITH_APPROVED_SHA256
+    ubuntu-pro-fips.gpg: REPLACE_WITH_APPROVED_SHA256
+    corp-archive-keyring.gpg: REPLACE_WITH_APPROVED_SHA256
+    docker.asc: REPLACE_WITH_APPROVED_SHA256
+    corp-ca-bundle.pem: REPLACE_WITH_APPROVED_SHA256

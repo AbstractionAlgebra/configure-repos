@@ -1,0 +1,17 @@
+// Managed by Ansible. Internal CA trust applies to APT, not the system trust store.
+Acquire::https::CaInfo "/etc/apt/keyrings/corp-ca-bundle.pem";
+Acquire::https::Verify-Peer "true";
+Acquire::https::Verify-Host "true";
+Acquire::https::{{ airgap_apt_mirror_origin | urlsplit('hostname') }}::CaInfo "/etc/apt/keyrings/corp-ca-bundle.pem";
+Acquire::https::{{ airgap_apt_mirror_origin | urlsplit('hostname') }}::Verify-Peer "true";
+Acquire::https::{{ airgap_apt_mirror_origin | urlsplit('hostname') }}::Verify-Host "true";
+Acquire::https::AllowRedirect "false";
+Acquire::https::Timeout "{{ airgap_apt_timeout | int }}";
+Acquire::Retries "0";
+Acquire::AllowInsecureRepositories "false";
+Acquire::AllowWeakRepositories "false";
+Acquire::AllowDowngradeToInsecureRepositories "false";
+Acquire::Check-Valid-Until "true";
+Acquire::Check-Date "true";
+APT::Get::AllowUnauthenticated "false";
+APT::Update::Error-Mode "any";

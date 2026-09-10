@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  role_name: airgap_apt
+  author: Infrastructure Engineering
+  description: Offline Ubuntu repository configuration and metadata validation
+  min_ansible_version: '2.18'
+  platforms:
+
+    - name: Ubuntu
+      versions: [jammy, noble]
+dependencies: []

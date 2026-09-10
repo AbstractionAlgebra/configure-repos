@@ -1,0 +1,140 @@
+---
+- name: Create repository trust and source directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+  - /etc/apt/keyrings
+  - /etc/apt/sources.list.d
+  register: airgap_apt_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - airgap_apt_io is not unreachable
+    - airgap_apt_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ airgap_apt_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
+
+- name: Deploy checksum-validated public keys and internal CA bundle
+  ansible.builtin.copy:
+    src: '{{ airgap_apt_asset_dir }}/{{ airgap_apt_release.codename }}/{{ item }}'
+    dest: /etc/apt/keyrings/{{ item }}
+    owner: root
+    group: root
+    mode: '0644'
+  loop: '{{ airgap_apt_required_assets }}'
+  register: airgap_apt_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - airgap_apt_io is not unreachable
+    - airgap_apt_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ airgap_apt_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
+
+- name: Configure APT HTTPS trust and signature requirements
+  ansible.builtin.template:
+    src: security.conf.j2
+    dest: /etc/apt/apt.conf.d/99zz-airgap-security
+    owner: root
+    group: root
+    mode: '0644'
+  register: airgap_apt_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - airgap_apt_io is not unreachable
+    - airgap_apt_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ airgap_apt_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
+
+- name: Verify effective security settings before replacing source definitions
+  ansible.builtin.include_tasks: security_check.yml
+  when: not ansible_check_mode
+
+- name: Write managed list atomically before removing other sources
+  ansible.builtin.template:
+    src: repositories.list.j2
+    dest: /etc/apt/sources.list.d/airgap-managed.list
+    owner: root
+    group: root
+    mode: '0644'
+  register: airgap_apt_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - airgap_apt_io is not unreachable
+    - airgap_apt_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ airgap_apt_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
+
+- name: Find other list and Deb822 entries including symlinks
+  ansible.builtin.find:
+    paths: /etc/apt/sources.list.d
+    patterns:
+    - '*.list'
+    - '*.sources'
+    file_type: any
+    recurse: false
+    hidden: true
+  register: airgap_apt_other_sources
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - airgap_apt_other_sources is not unreachable
+    - airgap_apt_other_sources.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable')
+      | list | length == 0
+    fail_msg: '{{ airgap_apt_other_sources.msg | default(''A connection was lost; consult ansible.log for details.'')
+      }}'
+
+- name: Refuse unexpected directories matching source filenames
+  ansible.builtin.assert:
+    that: airgap_apt_other_sources.files | selectattr('isdir') | list | length == 0
+    fail_msg: A directory has a .list or .sources suffix; review it manually before cleanup.
+
+- name: Remove all other source entries
+  ansible.builtin.file:
+    path: '{{ item.path }}'
+    state: absent
+  loop: '{{ airgap_apt_other_sources.files }}'
+  loop_control:
+    label: '{{ item.path }}'
+  when: item.path != '/etc/apt/sources.list.d/airgap-managed.list'
+  register: airgap_apt_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - airgap_apt_io is not unreachable
+    - airgap_apt_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ airgap_apt_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
+
+- name: Remove legacy main source list
+  ansible.builtin.file:
+    path: /etc/apt/sources.list
+    state: absent
+  register: airgap_apt_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - airgap_apt_io is not unreachable
+    - airgap_apt_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ airgap_apt_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'

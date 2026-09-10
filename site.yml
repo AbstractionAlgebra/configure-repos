@@ -1,0 +1,78 @@
+# configure-repos - Air-gapped Ubuntu APT repository configuration
+# Version: 1.0.0
+# Release date: 2026-09-09
+#
+# Description:
+# - Configure Ubuntu 22.04/24.04 amd64 mirrors under ubuntu22/ubuntu24 URL prefixes.
+# - Deploy offline upstream/corporate signing keys and internal APT HTTPS CA trust.
+# - Replace other APT sources with managed legacy .list entries.
+# - Include Ubuntu, ESM and FIPS repositories, plus optional Docker CE.
+# - Validate metadata refresh only; do not install or upgrade packages.
+# - Log each host failure, retain source files, and continue other workstations.
+#
+# Example usage (run from the repository root):
+# - Syntax check: ansible-playbook site.yml --syntax-check
+# - Preview: ansible-playbook site.yml --check --diff
+# - Pilot: ansible-playbook site.yml --limit 'workstation22.example,localhost' --ask-become-pass
+# - Fleet: ansible-playbook site.yml --ask-become-pass
+#
+# Replace inventory placeholders and supply approved trust assets/checksums first.
+# Include localhost in any limit expression to write the final fleet JSON report.
+---
+- name: Configure internal APT repositories on each workstation
+  hosts: airgap_workstations
+  gather_facts: false
+  become: true
+  any_errors_fatal: false
+  # No max_fail_percentage: one failed batch must not cancel the fleet.
+  serial: "{{ airgap_apt_batch_size | default(10) }}"
+  pre_tasks:
+
+    - name: Initialize report state before attempting a connection
+      ansible.builtin.set_fact:
+        airgap_apt_result:
+          status: incomplete
+          message: Host did not complete; consult ansible.log for connection or execution errors.
+
+    - name: Gather operating system facts and retain connection errors
+      ansible.builtin.setup:
+        gather_subset: [min]
+      register: airgap_apt_setup
+      ignore_unreachable: true
+      ignore_errors: true
+
+    - name: Record hosts that cannot be prepared
+      ansible.builtin.set_fact:
+        airgap_apt_result:
+          status: failed
+          message: "{{ airgap_apt_setup.msg | default('Fact gathering failed') }}"
+      when: airgap_apt_setup is failed or airgap_apt_setup is unreachable
+  tasks:
+
+    - name: Apply repository role to reachable hosts
+      ansible.builtin.include_role:
+        name: airgap_apt
+      when: not (airgap_apt_setup is failed or airgap_apt_setup is unreachable)
+
+- name: Write fleet report even when workstation tasks failed
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  tasks:
+
+    - name: Create private report directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/reports"
+        state: directory
+        mode: '0700'
+
+    - name: Write results for hosts attempted in this invocation
+      ansible.builtin.template:
+        src: templates/report.json.j2
+        dest: "{{ playbook_dir }}/reports/last-run.json"
+        mode: '0600'
+
+    - name: Show report location
+      ansible.builtin.debug:
+        msg: "Fleet results: {{ playbook_dir }}/reports/last-run.json. Review failed/incomplete hosts; rescued failures do not make Ansible exit nonzero."

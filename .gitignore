@@ -1,0 +1,6 @@
+ansible.log
+reports/
+__pycache__/
+assets/**/*.gpg
+assets/**/*.asc
+assets/**/*.pem
