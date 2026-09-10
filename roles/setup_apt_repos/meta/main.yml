@@ -1,6 +1,6 @@
 ---
 galaxy_info:
-  role_name: airgap_apt
+  role_name: setup_apt_repos
   author: Infrastructure Engineering
   description: Offline Ubuntu repository configuration and metadata validation
   min_ansible_version: '2.18'

@@ -1,9 +1,9 @@
 {
 {% set ns = namespace(first=true) %}
-{% for host in groups['airgap_workstations'] | default([]) %}
-{% if hostvars[host].airgap_apt_result is defined %}
+{% for host in groups['apt_workstations'] | default([]) %}
+{% if hostvars[host].apt_repos_result is defined %}
 {% if not ns.first %},{% endif %}
-  {{ host | to_json }}: {{ hostvars[host].airgap_apt_result | to_nice_json }}
+  {{ host | to_json }}: {{ hostvars[host].apt_repos_result | to_nice_json }}
 {% set ns.first = false %}
 {% endif %}
 {% endfor %}

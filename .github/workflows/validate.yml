@@ -1,4 +1,4 @@
-name: Validate airgap APT
+name: Validate APT repositories
 on: [push, pull_request, workflow_dispatch]
 jobs:
   ubuntu:
@@ -28,7 +28,7 @@ jobs:
         run: /opt/ansible-test/bin/ansible-playbook site.yml --syntax-check
       - name: Exercise signed HTTPS fixture
         env:
-          AIRGAP_APT_DISPOSABLE: '1'
+          APT_REPOS_DISPOSABLE: '1'
         run: |
           export PATH="/opt/ansible-test/bin:$PATH"
           python tests/integration.py

@@ -1,0 +1,44 @@
+---
+apt_repos_mirror_origin: https://repo.corp.example
+apt_repos_asset_dir: "{{ playbook_dir }}/assets"
+apt_repos_asset_sha256: {}
+apt_repos_docker_enabled: false
+apt_repos_timeout: 30
+apt_repos_refresh_deadline: 600
+apt_repos_release_map:
+  '22.04': {codename: jammy, prefix: ubuntu22}
+  '24.04': {codename: noble, prefix: ubuntu24}
+apt_repos_ubuntu_components: [main, restricted, universe, multiverse]
+apt_repos_ubuntu_pockets: ['', '-updates', '-security', '-backports']
+# Include only channels actually mirrored; these are proposed path/suite defaults.
+# FIPS and FIPS Updates are separately configurable and do not enable FIPS mode.
+apt_repos_fips_channels:
+  - {name: fips, path: fips/ubuntu, suffix: '-updates'}
+  - {name: fips-updates, path: fips-updates/ubuntu, suffix: '-updates'}
+apt_repos_corp_components: [main]
+apt_repos_corp_suite: "{{ apt_repos_release.codename }}"
+apt_repos_repositories:
+
+  - name: ubuntu
+    path: ubuntu
+    suites: "{{ apt_repos_ubuntu_pockets | map('regex_replace', '^', apt_repos_release.codename) | list }}"
+    components: "{{ apt_repos_ubuntu_components }}"
+    key: ubuntu-archive-keyring.gpg
+
+  - name: esm-infra
+    path: infra/ubuntu
+    suites: ["{{ apt_repos_release.codename }}-infra-security", "{{ apt_repos_release.codename }}-infra-updates"]
+    components: [main]
+    key: ubuntu-pro-esm-infra.gpg
+
+  - name: esm-apps
+    path: apps/ubuntu
+    suites: ["{{ apt_repos_release.codename }}-apps-security", "{{ apt_repos_release.codename }}-apps-updates"]
+    components: [main]
+    key: ubuntu-pro-esm-apps.gpg
+
+  - name: corp
+    path: corp/ubuntu
+    suites: ["{{ apt_repos_corp_suite }}"]
+    components: "{{ apt_repos_corp_components }}"
+    key: corp-archive-keyring.gpg

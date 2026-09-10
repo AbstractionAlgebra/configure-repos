@@ -2,25 +2,25 @@
 - name: Read merged APT security settings
   ansible.builtin.command: /usr/bin/apt-config dump
   changed_when: false
-  register: airgap_apt_merged_config
+  register: apt_repos_merged_config
   ignore_unreachable: true
 
 - name: Convert connection loss into a recoverable host failure
   ansible.builtin.assert:
-    that: airgap_apt_merged_config is not unreachable
-    fail_msg: "{{ airgap_apt_merged_config.msg | default('Connection lost while checking APT security.') }}"
+    that: apt_repos_merged_config is not unreachable
+    fail_msg: "{{ apt_repos_merged_config.msg | default('Connection lost while checking APT security.') }}"
 
 - name: Reject overriding security configuration
   ansible.builtin.assert:
-    that: item in airgap_apt_merged_config.stdout_lines
+    that: item in apt_repos_merged_config.stdout_lines
     fail_msg: "Effective APT setting differs from required value: {{ item }}. Review site apt.conf overrides."
   loop:
     - 'Acquire::https::CaInfo "/etc/apt/keyrings/corp-ca-bundle.pem";'
     - 'Acquire::https::Verify-Peer "true";'
     - 'Acquire::https::Verify-Host "true";'
-    - 'Acquire::https::{{ airgap_apt_mirror_origin | urlsplit("hostname") }}::CaInfo "/etc/apt/keyrings/corp-ca-bundle.pem";'
-    - 'Acquire::https::{{ airgap_apt_mirror_origin | urlsplit("hostname") }}::Verify-Peer "true";'
-    - 'Acquire::https::{{ airgap_apt_mirror_origin | urlsplit("hostname") }}::Verify-Host "true";'
+    - 'Acquire::https::{{ apt_repos_mirror_origin | urlsplit("hostname") }}::CaInfo "/etc/apt/keyrings/corp-ca-bundle.pem";'
+    - 'Acquire::https::{{ apt_repos_mirror_origin | urlsplit("hostname") }}::Verify-Peer "true";'
+    - 'Acquire::https::{{ apt_repos_mirror_origin | urlsplit("hostname") }}::Verify-Host "true";'
     - 'Acquire::https::AllowRedirect "false";'
     - 'Acquire::AllowInsecureRepositories "false";'
     - 'Acquire::AllowWeakRepositories "false";'

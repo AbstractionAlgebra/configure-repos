@@ -3,42 +3,42 @@
   ansible.builtin.assert:
     that:
     - ansible_facts.distribution == 'Ubuntu'
-    - ansible_facts.distribution_version in airgap_apt_release_map
+    - ansible_facts.distribution_version in apt_repos_release_map
     - ansible_facts.architecture == 'x86_64'
-    - airgap_apt_timeout | int > 0
-    - airgap_apt_refresh_deadline | int > 0
+    - apt_repos_timeout | int > 0
+    - apt_repos_refresh_deadline | int > 0
     fail_msg: Only Ubuntu 22.04/24.04 amd64 with positive timeouts is supported.
 
 - name: Select release and mirror root
   ansible.builtin.set_fact:
-    airgap_apt_release: '{{ airgap_apt_release_map[ansible_facts.distribution_version] }}'
+    apt_repos_release: '{{ apt_repos_release_map[ansible_facts.distribution_version] }}'
 
 - name: Validate mirror origin and release mapping
   ansible.builtin.assert:
     that:
-    - airgap_apt_mirror_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?\\Z')
-    - airgap_apt_release.codename == ansible_facts.distribution_release
-    - airgap_apt_release.prefix in ['ubuntu22', 'ubuntu24']
+    - apt_repos_mirror_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?\\Z')
+    - apt_repos_release.codename == ansible_facts.distribution_release
+    - apt_repos_release.prefix in ['ubuntu22', 'ubuntu24']
     fail_msg: Supply an HTTPS origin without credentials, trailing slash, or path.
 
 - name: Build base repository definitions
   ansible.builtin.set_fact:
-    airgap_apt_effective_repositories: '{{ airgap_apt_repositories }}'
-    airgap_apt_base_url: '{{ airgap_apt_mirror_origin }}/{{ airgap_apt_release.prefix }}'
+    apt_repos_effective_repositories: '{{ apt_repos_repositories }}'
+    apt_repos_base_url: '{{ apt_repos_mirror_origin }}/{{ apt_repos_release.prefix }}'
 
 - name: Add selected FIPS channels
   ansible.builtin.set_fact:
-    airgap_apt_effective_repositories: '{{ airgap_apt_effective_repositories + [{''name'': item.name, ''path'':
-      item.path, ''suites'': [airgap_apt_release.codename ~ item.suffix], ''components'': [''main''], ''key'': ''ubuntu-pro-fips.gpg''}]
+    apt_repos_effective_repositories: '{{ apt_repos_effective_repositories + [{''name'': item.name, ''path'':
+      item.path, ''suites'': [apt_repos_release.codename ~ item.suffix], ''components'': [''main''], ''key'': ''ubuntu-pro-fips.gpg''}]
       }}'
-  loop: '{{ airgap_apt_fips_channels }}'
+  loop: '{{ apt_repos_fips_channels }}'
 
 - name: Add optional Docker repository
   ansible.builtin.set_fact:
-    airgap_apt_effective_repositories: '{{ airgap_apt_effective_repositories + [{''name'': ''docker'', ''path'':
-      ''docker/linux/ubuntu'', ''suites'': [airgap_apt_release.codename], ''components'': [''stable''], ''key'':
+    apt_repos_effective_repositories: '{{ apt_repos_effective_repositories + [{''name'': ''docker'', ''path'':
+      ''docker/linux/ubuntu'', ''suites'': [apt_repos_release.codename], ''components'': [''stable''], ''key'':
       ''docker.asc''}] }}'
-  when: airgap_apt_docker_enabled | bool
+  when: apt_repos_docker_enabled | bool
 
 - name: Validate repository names and paths
   ansible.builtin.assert:
@@ -50,46 +50,46 @@
     - item.components | length > 0
     - item.suites | reject('match', '^[a-z0-9][a-z0-9-]*\\Z') | list | length == 0
     - item.components | reject('match', '^[a-z0-9][a-z0-9-]*\\Z') | list | length == 0
-  loop: '{{ airgap_apt_effective_repositories }}'
+  loop: '{{ apt_repos_effective_repositories }}'
   loop_control:
     label: '{{ item.name }}'
 
 - name: Require a nonempty unambiguous repository set
   ansible.builtin.assert:
     that:
-    - airgap_apt_effective_repositories | length > 0
-    - airgap_apt_effective_repositories | map(attribute='name') | unique | length == airgap_apt_effective_repositories
+    - apt_repos_effective_repositories | length > 0
+    - apt_repos_effective_repositories | map(attribute='name') | unique | length == apt_repos_effective_repositories
       | length
 
 - name: Select required offline trust files
   ansible.builtin.set_fact:
-    airgap_apt_required_assets: '{{ (airgap_apt_effective_repositories | map(attribute=''key'') | unique | list)
+    apt_repos_required_assets: '{{ (apt_repos_effective_repositories | map(attribute=''key'') | unique | list)
       + [''corp-ca-bundle.pem''] }}'
 
 - name: Require approved checksums for each asset
   ansible.builtin.assert:
     that:
-    - airgap_apt_asset_sha256.get(airgap_apt_release.codename, {}).get(item, '') is match('^[a-fA-F0-9]{64}\\Z')
-    fail_msg: Supply an approved SHA-256 for {{ airgap_apt_release.codename }}/{{ item }}.
-  loop: '{{ airgap_apt_required_assets }}'
+    - apt_repos_asset_sha256.get(apt_repos_release.codename, {}).get(item, '') is match('^[a-fA-F0-9]{64}\\Z')
+    fail_msg: Supply an approved SHA-256 for {{ apt_repos_release.codename }}/{{ item }}.
+  loop: '{{ apt_repos_required_assets }}'
 
 - name: Inspect offline files on controller
   ansible.builtin.stat:
-    path: '{{ airgap_apt_asset_dir }}/{{ airgap_apt_release.codename }}/{{ item }}'
+    path: '{{ apt_repos_asset_dir }}/{{ apt_repos_release.codename }}/{{ item }}'
     checksum_algorithm: sha256
   delegate_to: localhost
   become: false
-  loop: '{{ airgap_apt_required_assets }}'
-  register: airgap_apt_assets
+  loop: '{{ apt_repos_required_assets }}'
+  register: apt_repos_assets
   ignore_unreachable: true
 
 - name: Convert connection loss into a recoverable host failure
   ansible.builtin.assert:
     that:
-    - airgap_apt_assets is not unreachable
-    - airgap_apt_assets.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable')
+    - apt_repos_assets is not unreachable
+    - apt_repos_assets.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable')
       | list | length == 0
-    fail_msg: '{{ airgap_apt_assets.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
+    fail_msg: '{{ apt_repos_assets.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
 
 - name: Verify all offline asset bytes before modifying workstation
   ansible.builtin.assert:
@@ -97,9 +97,9 @@
     - item.stat.exists
     - item.stat.isreg | default(false)
     - item.stat.size | default(0) > 0
-    - item.stat.checksum | default('') == (airgap_apt_asset_sha256[airgap_apt_release.codename][item.item] | lower)
+    - item.stat.checksum | default('') == (apt_repos_asset_sha256[apt_repos_release.codename][item.item] | lower)
     fail_msg: 'Missing or unapproved offline asset: {{ item.item }}'
-  loop: '{{ airgap_apt_assets.results }}'
+  loop: '{{ apt_repos_assets.results }}'
   loop_control:
     label: '{{ item.item }}'
 
@@ -111,23 +111,23 @@
   - /usr/bin/apt-config
   - /usr/bin/gpgv
   - /usr/bin/timeout
-  register: airgap_apt_prerequisites
+  register: apt_repos_prerequisites
   ignore_unreachable: true
 
 - name: Convert connection loss into a recoverable host failure
   ansible.builtin.assert:
     that:
-    - airgap_apt_prerequisites is not unreachable
-    - airgap_apt_prerequisites.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable')
+    - apt_repos_prerequisites is not unreachable
+    - apt_repos_prerequisites.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable')
       | list | length == 0
-    fail_msg: '{{ airgap_apt_prerequisites.msg | default(''A connection was lost; consult ansible.log for details.'')
+    fail_msg: '{{ apt_repos_prerequisites.msg | default(''A connection was lost; consult ansible.log for details.'')
       }}'
 
 - name: Require preinstalled executables
   ansible.builtin.assert:
     that: item.stat.exists and (item.stat.executable | default(false))
     fail_msg: 'Required executable missing: {{ item.item }}. Provision it outside this role.'
-  loop: '{{ airgap_apt_prerequisites.results }}'
+  loop: '{{ apt_repos_prerequisites.results }}'
   loop_control:
     label: '{{ item.item }}'
 
@@ -135,23 +135,23 @@
   ansible.builtin.command: /usr/bin/apt-config dump
   changed_when: false
   check_mode: false
-  register: airgap_apt_existing_config
+  register: apt_repos_existing_config
   ignore_unreachable: true
 
 - name: Convert connection loss into a recoverable host failure
   ansible.builtin.assert:
     that:
-    - airgap_apt_existing_config is not unreachable
-    - airgap_apt_existing_config.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable')
+    - apt_repos_existing_config is not unreachable
+    - apt_repos_existing_config.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable')
       | list | length == 0
-    fail_msg: '{{ airgap_apt_existing_config.msg | default(''A connection was lost; consult ansible.log for details.'')
+    fail_msg: '{{ apt_repos_existing_config.msg | default(''A connection was lost; consult ansible.log for details.'')
       }}'
 
 - name: Require standard APT source locations before cleanup
   ansible.builtin.assert:
     that:
-    - '''Dir "/";'' in airgap_apt_existing_config.stdout_lines'
-    - '''Dir::Etc "etc/apt";'' in airgap_apt_existing_config.stdout'
-    - '''Dir::Etc::sourcelist "sources.list";'' in airgap_apt_existing_config.stdout'
-    - '''Dir::Etc::sourceparts "sources.list.d";'' in airgap_apt_existing_config.stdout'
+    - '''Dir "/";'' in apt_repos_existing_config.stdout_lines'
+    - '''Dir::Etc "etc/apt";'' in apt_repos_existing_config.stdout'
+    - '''Dir::Etc::sourcelist "sources.list";'' in apt_repos_existing_config.stdout'
+    - '''Dir::Etc::sourceparts "sources.list.d";'' in apt_repos_existing_config.stdout'
     fail_msg: Nonstandard APT directories require review before this role can replace all active sources.

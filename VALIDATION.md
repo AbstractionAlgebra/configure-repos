@@ -1,10 +1,11 @@
-# Delivery validation
+# Version 1.1 validation
 
 Executed locally:
 
 - All 8 unit checks passed, including the Ubuntu release/Docker rendering matrix, rejected inputs, explicit HTTPS trust, connection-loss guards, and JSON reporting.
 - All 11 YAML files parsed and passed duplicate-key checks.
 - Both Python test files compiled successfully.
+- Role includes, inventory/report group names, and variable references were checked after renaming to `setup_apt_repos` / `apt_repos_`.
 
 Not executed in this session:
 

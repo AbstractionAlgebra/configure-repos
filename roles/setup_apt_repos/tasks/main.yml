@@ -4,7 +4,7 @@
 
     - name: Mark host in progress
       ansible.builtin.set_fact:
-        airgap_apt_result:
+        apt_repos_result:
           status: incomplete
           message: Repository configuration started but did not complete; see ansible.log.
 
@@ -22,15 +22,15 @@
 
     - name: Record successful configuration or dry run
       ansible.builtin.set_fact:
-        airgap_apt_result:
+        apt_repos_result:
           status: "{{ 'check_mode' if ansible_check_mode else 'success' }}"
           message: "{{ 'Configuration preview only; metadata was not refreshed.' if ansible_check_mode else 'Repositories configured and metadata refreshed without warnings or errors.' }}"
-          release: "{{ airgap_apt_release.codename }}"
+          release: "{{ apt_repos_release.codename }}"
   rescue:
 
     - name: Record failure without rolling source files back
       ansible.builtin.set_fact:
-        airgap_apt_result:
+        apt_repos_result:
           status: failed
           task: "{{ ansible_failed_task.name }}"
           message: "{{ ansible_failed_result.msg | default('Task failed') }}"
@@ -39,4 +39,4 @@
 
     - name: Log workstation failure and continue
       ansible.builtin.debug:
-        msg: "{{ inventory_hostname }}: {{ airgap_apt_result }}"
+        msg: "{{ inventory_hostname }}: {{ apt_repos_result }}"

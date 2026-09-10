@@ -1,20 +1,26 @@
 # configure-repos
 
-Version **1.0.0** — released **2026-09-09**.
+Version **1.1** - released **2026-09-09**.
 
-Air-gapped Ubuntu APT repository configuration.
+Ubuntu APT repository configuration with the `setup_apt_repos` role.
 
 Ansible role and fleet playbook for Ubuntu 22.04 (jammy) and 24.04 (noble), amd64. Uses existing HTTPS mirrors under `/ubuntu22/` and `/ubuntu24/`, legacy `.list` output, upstream signatures, corporate signing keys, and a supplied internal CA bundle. ESM Infra, ESM Apps, corporate and configured FIPS channels are included; Docker CE is off by default. No Ubuntu Pro attachment, package installation, package upgrade, FIPS activation, or reboot is performed.
+
+## Version 1.1 migration
+
+The role is now `setup_apt_repos`, all configuration variables and registered results use `apt_repos_`, and the inventory group is `apt_workstations`. Update custom inventories and role references before running this release; previous variable names are not aliases. Project versions use `major.minor` format.
+
+Managed output is now `apt-repos-managed.list` with `99zz-apt-repos-security`. The role removes the predecessor security file after validating its replacement; normal source cleanup removes the previous managed list. Repository selection, trust requirements, and failure reporting are unchanged.
 
 ## Prepare
 
 Use a Linux Ansible controller with Python 3 and ansible-core 2.18 or 2.19. Targets need Python 3, APT, gpgv, coreutils (`timeout`), SSH access, and privilege escalation already available. The role does not bootstrap packages. HTTPS transport is implemented; NFS mounting is outside this implementation because the agreed deployment uses HTTPS.
 
 1. Edit `inventory/hosts.yml` with real workstations and SSH settings.
-2. Change `airgap_apt_mirror_origin` in `inventory/group_vars/airgap_workstations.yml`. The supplied `repo.corp.example` is a reserved placeholder. Do not add a trailing slash.
+2. Change `apt_repos_mirror_origin` in `inventory/group_vars/apt_workstations.yml`. The supplied `repo.corp.example` is a reserved placeholder. Do not add a trailing slash.
 3. Put approved public-key and CA files into `assets/jammy/` and `assets/noble/`, following `assets/README.md`. No fake keys or certificates are included.
 4. Enter their approved SHA-256 values in the inventory variables. Missing files or placeholder hashes fail preflight before changes to workstation APT files.
-5. Verify mirrored FIPS channels/suites, components and pockets. Defaults are examples of upstream layout, not a claim that every channel exists for every release. Remove unmirrored channels from `airgap_apt_fips_channels`; override definitions where necessary.
+5. Verify mirrored FIPS channels/suites, components and pockets. Defaults are examples of upstream layout, not a claim that every channel exists for every release. Remove unmirrored channels from `apt_repos_fips_channels`; override definitions where necessary.
 
 From this directory:
 
@@ -42,9 +48,9 @@ For 22.04, the base is `https://repo.corp.example/ubuntu22`; for 24.04 it is `ht
 | Corporate | corp/ubuntu | REL | main |
 | Docker (optional) | docker/linux/ubuntu | REL | stable |
 
-Override `airgap_apt_repositories` for different mirror layouts; each entry has `name`, `path`, `suites`, `components`, and `key`. The FIPS channel list and optional Docker entry are appended to it. Set `airgap_apt_docker_enabled: true` in host/group inventory as needed. Filenames are shared between OS releases; approved asset contents/checksums can differ by release.
+Override `apt_repos_repositories` for different mirror layouts; each entry has `name`, `path`, `suites`, `components`, and `key`. The FIPS channel list and optional Docker entry are appended to it. Set `apt_repos_docker_enabled: true` in host/group inventory as needed. Filenames are shared between OS releases; approved asset contents/checksums can differ by release.
 
-The role deploys `/etc/apt/sources.list.d/airgap-managed.list` and removes `/etc/apt/sources.list` plus every other `.list` or `.sources` entry in `/etc/apt/sources.list.d`, including Ubuntu's default Deb822 files, Pro-generated files, and old Docker entries. This is intentional and has no automatic rollback. Inactive files with other suffixes are not active APT repositories and are left alone. Nonstandard configured APT source directories fail preflight. Another tool could recreate sources later; this role is not a continuous enforcement service.
+The role deploys `/etc/apt/sources.list.d/apt-repos-managed.list` and removes `/etc/apt/sources.list` plus every other `.list` or `.sources` entry in `/etc/apt/sources.list.d`, including Ubuntu's default Deb822 files, Pro-generated files, and old Docker entries. This is intentional and has no automatic rollback. Inactive files with other suffixes are not active APT repositories and are left alone. Nonstandard configured APT source directories fail preflight. Another tool could recreate sources later; this role is not a continuous enforcement service.
 
 ## Trust and validation
 
@@ -60,7 +66,7 @@ FIPS repository access does not make a machine FIPS-enabled or STIG-compliant. T
 
 Failures are rescued per workstation, recorded in `ansible.log`, and included in `reports/last-run.json`. Source files are left as they stand, including any partially completed configuration. Connection losses inside the role are converted into local assertion failures so a failed serial batch does not stop later batches. Initial unreachable hosts are also recorded. The playbook continues other workstations.
 
-The default batch size is 10; override `airgap_apt_batch_size`. The JSON statuses are `success`, `failed`, `incomplete`, or `check_mode`. Rescued failures can produce an exit code of zero: automation consuming this playbook must inspect the report, not only the process exit status. The report is the latest invocation, while `ansible.log` preserves task diagnostics across invocations. Archive both under your organization's log-retention policy. Concurrent invocations should use separate project copies to avoid sharing report/log paths.
+The default batch size is 10; override `apt_repos_batch_size`. The JSON statuses are `success`, `failed`, `incomplete`, or `check_mode`. Rescued failures can produce an exit code of zero: automation consuming this playbook must inspect the report, not only the process exit status. The report is the latest invocation, while `ansible.log` preserves task diagnostics across invocations. Archive both under your organization's log-retention policy. Concurrent invocations should use separate project copies to avoid sharing report/log paths.
 
 ## Validation
 

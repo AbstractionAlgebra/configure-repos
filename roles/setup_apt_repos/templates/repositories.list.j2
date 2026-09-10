@@ -1,0 +1,8 @@
+# Managed by Ansible setup_apt_repos. Manual changes will be replaced.
+# {{ apt_repos_release.codename }} / amd64 / internal mirrors only
+{% for repo in apt_repos_effective_repositories %}
+# {{ repo.name }}
+{% for suite in repo.suites %}
+deb [arch=amd64 signed-by=/etc/apt/keyrings/{{ repo.key }} allow-insecure=no allow-weak=no allow-downgrade-to-insecure=no check-valid-until=yes check-date=yes] {{ apt_repos_base_url }}/{{ repo.path }} {{ suite }} {{ repo.components | join(' ') }}
+{% endfor %}
+{% endfor %}

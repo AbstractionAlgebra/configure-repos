@@ -8,7 +8,7 @@ import jinja2
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-ROLE = ROOT / 'roles' / 'airgap_apt'
+ROLE = ROOT / 'roles' / 'setup_apt_repos'
 
 
 def environment():
@@ -36,19 +36,19 @@ def resolve(value, context, env):
 def context(version, docker):
     env = environment()
     cfg = yaml.safe_load((ROLE / 'defaults/main.yml').read_text())
-    cfg['airgap_apt_release'] = cfg['airgap_apt_release_map'][version]
-    cfg['airgap_apt_docker_enabled'] = docker
-    cfg['airgap_apt_corp_suite'] = resolve(cfg['airgap_apt_corp_suite'], cfg, env)
+    cfg['apt_repos_release'] = cfg['apt_repos_release_map'][version]
+    cfg['apt_repos_docker_enabled'] = docker
+    cfg['apt_repos_corp_suite'] = resolve(cfg['apt_repos_corp_suite'], cfg, env)
     # Evaluate the actual repository-building set_fact tasks.
     for task in yaml.safe_load((ROLE / 'tasks/preflight.yml').read_text()):
         if task['name'] not in ['Build base repository definitions', 'Add selected FIPS channels', 'Add optional Docker repository']:
             continue
         if task['name'] == 'Add optional Docker repository' and not docker:
             continue
-        items = cfg['airgap_apt_fips_channels'] if 'loop' in task else [None]
+        items = cfg['apt_repos_fips_channels'] if 'loop' in task else [None]
         for item in items:
             cfg['item'] = item
-            cfg['airgap_apt_repositories'] = resolve(cfg['airgap_apt_repositories'], cfg, env)
+            cfg['apt_repos_repositories'] = resolve(cfg['apt_repos_repositories'], cfg, env)
             cfg.update(resolve(task['ansible.builtin.set_fact'], cfg, env))
     return cfg
 
@@ -92,8 +92,8 @@ class ProjectTests(unittest.TestCase):
         task = next(t for t in yaml.safe_load((ROLE / 'tasks/preflight.yml').read_text()) if t['name'] == 'Validate mirror origin and release mapping')
         expr = environment().compile_expression(task['ansible.builtin.assert']['that'][0])
         for origin in ['http://repo.corp.example', 'https://user:password@repo.corp.example', 'https://repo.example/a', 'https://repo.example\nInjected', 'file:///mnt/mirror']:
-            self.assertFalse(expr(airgap_apt_mirror_origin=origin), origin)
-        self.assertTrue(expr(airgap_apt_mirror_origin='https://repo.example:8443'))
+            self.assertFalse(expr(apt_repos_mirror_origin=origin), origin)
+        self.assertTrue(expr(apt_repos_mirror_origin='https://repo.example:8443'))
 
     def test_reject_source_injection_and_traversal(self):
         task = next(t for t in yaml.safe_load((ROLE / 'tasks/preflight.yml').read_text()) if t['name'] == 'Validate repository names and paths')
@@ -106,8 +106,8 @@ class ProjectTests(unittest.TestCase):
 
     def test_reports_include_failures_and_skip_unattempted(self):
         rendered = environment().from_string((ROOT / 'templates/report.json.j2').read_text()).render(
-            groups={'airgap_workstations': ['good', 'bad', 'limited-out']},
-            hostvars={'good': {'airgap_apt_result': {'status': 'success'}}, 'bad': {'airgap_apt_result': {'status': 'failed', 'message': 'TLS "error"\nsecond line'}}, 'limited-out': {}})
+            groups={'apt_workstations': ['good', 'bad', 'limited-out']},
+            hostvars={'good': {'apt_repos_result': {'status': 'success'}}, 'bad': {'apt_repos_result': {'status': 'failed', 'message': 'TLS "error"\nsecond line'}}, 'limited-out': {}})
         result = json.loads(rendered)
         self.assertEqual(set(result), {'good', 'bad'})
         self.assertEqual(result['bad']['status'], 'failed')

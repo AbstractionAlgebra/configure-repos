@@ -2,11 +2,11 @@
 Acquire::https::CaInfo "/etc/apt/keyrings/corp-ca-bundle.pem";
 Acquire::https::Verify-Peer "true";
 Acquire::https::Verify-Host "true";
-Acquire::https::{{ airgap_apt_mirror_origin | urlsplit('hostname') }}::CaInfo "/etc/apt/keyrings/corp-ca-bundle.pem";
-Acquire::https::{{ airgap_apt_mirror_origin | urlsplit('hostname') }}::Verify-Peer "true";
-Acquire::https::{{ airgap_apt_mirror_origin | urlsplit('hostname') }}::Verify-Host "true";
+Acquire::https::{{ apt_repos_mirror_origin | urlsplit('hostname') }}::CaInfo "/etc/apt/keyrings/corp-ca-bundle.pem";
+Acquire::https::{{ apt_repos_mirror_origin | urlsplit('hostname') }}::Verify-Peer "true";
+Acquire::https::{{ apt_repos_mirror_origin | urlsplit('hostname') }}::Verify-Host "true";
 Acquire::https::AllowRedirect "false";
-Acquire::https::Timeout "{{ airgap_apt_timeout | int }}";
+Acquire::https::Timeout "{{ apt_repos_timeout | int }}";
 Acquire::Retries "0";
 Acquire::AllowInsecureRepositories "false";
 Acquire::AllowWeakRepositories "false";

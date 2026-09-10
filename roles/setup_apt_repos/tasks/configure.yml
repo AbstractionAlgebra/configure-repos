@@ -1,0 +1,152 @@
+---
+- name: Create repository trust and source directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+  - /etc/apt/keyrings
+  - /etc/apt/sources.list.d
+  register: apt_repos_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - apt_repos_io is not unreachable
+    - apt_repos_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ apt_repos_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
+
+- name: Deploy checksum-validated public keys and internal CA bundle
+  ansible.builtin.copy:
+    src: '{{ apt_repos_asset_dir }}/{{ apt_repos_release.codename }}/{{ item }}'
+    dest: /etc/apt/keyrings/{{ item }}
+    owner: root
+    group: root
+    mode: '0644'
+  loop: '{{ apt_repos_required_assets }}'
+  register: apt_repos_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - apt_repos_io is not unreachable
+    - apt_repos_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ apt_repos_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
+
+- name: Configure APT HTTPS trust and signature requirements
+  ansible.builtin.template:
+    src: security.conf.j2
+    dest: /etc/apt/apt.conf.d/99zz-apt-repos-security
+    owner: root
+    group: root
+    mode: '0644'
+  register: apt_repos_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - apt_repos_io is not unreachable
+    - apt_repos_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ apt_repos_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
+
+- name: Verify effective security settings before replacing source definitions
+  ansible.builtin.include_tasks: security_check.yml
+  when: not ansible_check_mode
+
+- name: Remove predecessor managed security configuration
+  ansible.builtin.file:
+    path: /etc/apt/apt.conf.d/99zz-airgap-security
+    state: absent
+  register: apt_repos_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that: apt_repos_io is not unreachable
+    fail_msg: "{{ apt_repos_io.msg | default('Connection lost while removing predecessor configuration.') }}"
+
+- name: Write managed list atomically before removing other sources
+  ansible.builtin.template:
+    src: repositories.list.j2
+    dest: /etc/apt/sources.list.d/apt-repos-managed.list
+    owner: root
+    group: root
+    mode: '0644'
+  register: apt_repos_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - apt_repos_io is not unreachable
+    - apt_repos_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ apt_repos_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
+
+- name: Find other list and Deb822 entries including symlinks
+  ansible.builtin.find:
+    paths: /etc/apt/sources.list.d
+    patterns:
+    - '*.list'
+    - '*.sources'
+    file_type: any
+    recurse: false
+    hidden: true
+  register: apt_repos_other_sources
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - apt_repos_other_sources is not unreachable
+    - apt_repos_other_sources.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable')
+      | list | length == 0
+    fail_msg: '{{ apt_repos_other_sources.msg | default(''A connection was lost; consult ansible.log for details.'')
+      }}'
+
+- name: Refuse unexpected directories matching source filenames
+  ansible.builtin.assert:
+    that: apt_repos_other_sources.files | selectattr('isdir') | list | length == 0
+    fail_msg: A directory has a .list or .sources suffix; review it manually before cleanup.
+
+- name: Remove all other source entries
+  ansible.builtin.file:
+    path: '{{ item.path }}'
+    state: absent
+  loop: '{{ apt_repos_other_sources.files }}'
+  loop_control:
+    label: '{{ item.path }}'
+  when: item.path != '/etc/apt/sources.list.d/apt-repos-managed.list'
+  register: apt_repos_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - apt_repos_io is not unreachable
+    - apt_repos_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ apt_repos_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'
+
+- name: Remove legacy main source list
+  ansible.builtin.file:
+    path: /etc/apt/sources.list
+    state: absent
+  register: apt_repos_io
+  ignore_unreachable: true
+
+- name: Convert connection loss into a recoverable host failure
+  ansible.builtin.assert:
+    that:
+    - apt_repos_io is not unreachable
+    - apt_repos_io.results | default([]) | selectattr('unreachable', 'defined') | selectattr('unreachable') | list
+      | length == 0
+    fail_msg: '{{ apt_repos_io.msg | default(''A connection was lost; consult ansible.log for details.'') }}'

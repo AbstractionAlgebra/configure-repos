@@ -23,15 +23,15 @@ def run(*args, **kwargs):
 
 
 def main():
-    if os.environ.get('AIRGAP_APT_DISPOSABLE') != '1' or os.geteuid() != 0:
-        raise SystemExit('Requires root and AIRGAP_APT_DISPOSABLE=1 in a disposable Ubuntu environment.')
+    if os.environ.get('APT_REPOS_DISPOSABLE') != '1' or os.geteuid() != 0:
+        raise SystemExit('Requires root and APT_REPOS_DISPOSABLE=1 in a disposable Ubuntu environment.')
     os_release = Path('/etc/os-release').read_text()
     version = re.search(r'^VERSION_ID="(.*?)"', os_release, re.M).group(1)
     if version not in ('22.04', '24.04'):
         raise SystemExit('Only Ubuntu 22.04/24.04 fixtures are supported.')
     codename, prefix = ('jammy', 'ubuntu22') if version == '22.04' else ('noble', 'ubuntu24')
     before_packages = run('dpkg-query', '-W', '-f=${Package}\t${Version}\n')
-    with tempfile.TemporaryDirectory(prefix='airgap-fixture-') as temp:
+    with tempfile.TemporaryDirectory(prefix='apt-repos-fixture-') as temp:
         work = Path(temp)
         work.chmod(0o755)
         gnupg = work / 'gnupg'
@@ -90,17 +90,17 @@ def main():
         inventory = work / 'inventory.json'
         variables = work / 'variables.json'
         variables.write_text(json.dumps({
-            'airgap_apt_asset_dir': str(work / 'assets'),
-            'airgap_apt_asset_sha256': {codename: {f.name: hashlib.sha256(f.read_bytes()).hexdigest() for f in assets.iterdir() if f.is_file()}},
-            'airgap_apt_docker_enabled': True,
-            'airgap_apt_batch_size': 1,
-            'airgap_apt_timeout': 2,
-            'airgap_apt_refresh_deadline': 30,
+            'apt_repos_asset_dir': str(work / 'assets'),
+            'apt_repos_asset_sha256': {codename: {f.name: hashlib.sha256(f.read_bytes()).hexdigest() for f in assets.iterdir() if f.is_file()}},
+            'apt_repos_docker_enabled': True,
+            'apt_repos_batch_size': 1,
+            'apt_repos_timeout': 2,
+            'apt_repos_refresh_deadline': 30,
         }))
 
         def play(hosts):
-            inventory.write_text(json.dumps({'all': {'children': {'airgap_workstations': {'hosts': {
-                name: {'ansible_connection': 'local', 'ansible_python_interpreter': '/usr/bin/python3', 'airgap_apt_mirror_origin': url}
+            inventory.write_text(json.dumps({'all': {'children': {'apt_workstations': {'hosts': {
+                name: {'ansible_connection': 'local', 'ansible_python_interpreter': '/usr/bin/python3', 'apt_repos_mirror_origin': url}
                 for name, url in hosts.items()}}}}}))
             result = run('ansible-playbook', 'site.yml', '-i', str(inventory), '-e', '@' + str(variables), cwd=ROOT)
             report = json.loads((ROOT / 'reports/last-run.json').read_text())
@@ -117,7 +117,7 @@ def main():
             assert not (sources / 'obsolete.list').exists()
             assert not (sources / 'obsolete.sources').exists()
             assert not Path('/etc/apt/sources.list').exists()
-            managed = sources / 'airgap-managed.list'
+            managed = sources / 'apt-repos-managed.list'
             original = managed.read_bytes()
             report, output = play({'good': origin})
             assert report['good']['status'] == 'success', report
